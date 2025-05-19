@@ -1,0 +1,22 @@
+name: Fix and Commit Lock File
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: rm -rf node_modules package-lock.json
+      - run: npm install
+      - name: Commit new lock file
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add package-lock.json
+          git commit -m "Regenerate lock file from CI" || echo "No changes"
+          git push
