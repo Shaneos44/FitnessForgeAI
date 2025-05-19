@@ -1,44 +1,43 @@
-name: Firebase Deployment
+name: Build and Deploy to Firebase Hosting
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  pull_request:
 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      
+      # 1. Checkout your code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Use Node.js (match your package.json engines or use latest LTS)
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'    # Or match your preferred version
           cache: 'npm'
-      
+
+      # 3. Print the root directory contents for debug
+      - name: List files in root
+        run: ls -l
+
+      # 4. Install dependencies (uses package-lock.json for deterministic install)
       - name: Install dependencies
-        run: npm install
-      
-      - name: Create .env file
-        run: |
-          echo "REACT_APP_FIREBASE_API_KEY=${{ secrets.REACT_APP_FIREBASE_API_KEY }}" >> .env
-          echo "REACT_APP_FIREBASE_AUTH_DOMAIN=${{ secrets.REACT_APP_FIREBASE_AUTH_DOMAIN }}" >> .env
-          echo "REACT_APP_FIREBASE_PROJECT_ID=${{ secrets.REACT_APP_FIREBASE_PROJECT_ID }}" >> .env
-          echo "REACT_APP_FIREBASE_STORAGE_BUCKET=${{ secrets.REACT_APP_FIREBASE_STORAGE_BUCKET }}" >> .env
-          echo "REACT_APP_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.REACT_APP_FIREBASE_MESSAGING_SENDER_ID }}" >> .env
-          echo "REACT_APP_FIREBASE_APP_ID=${{ secrets.REACT_APP_FIREBASE_APP_ID }}" >> .env
-          echo "REACT_APP_FIREBASE_MEASUREMENT_ID=${{ secrets.REACT_APP_FIREBASE_MEASUREMENT_ID }}" >> .env
-          echo "REACT_APP_OPENAI_API_KEY=${{ secrets.REACT_APP_OPENAI_API_KEY }}" >> .env
-      
+        run: npm ci
+
+      # 5. Build your app
       - name: Build
         run: npm run build
-      
-      - name: Deploy to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
+
+      # 6. Deploy to Firebase Hosting
+      - name: Deploy to Firebase Hosting
+        uses: w9jds/firebase-action@v2.2.0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          channelId: live
-          projectId: ${{ secrets.REACT_APP_FIREBASE_PROJECT_ID }}
+          args: deploy --only hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
