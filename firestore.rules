@@ -1,17 +1,39 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write only their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      match /trainingPlans/{planId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-      
-      match /workouts/{workoutId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
+    // Allow users to read and write only their own data in userProfiles
+    match /userProfiles/{userId} {
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && 
+                   request.resource.data.uid == request.auth.uid &&
+                   request.resource.data.email == request.auth.token.email;
+    }
+    
+    // Training plans collection
+    match /trainingPlans/{planId} {
+      allow read, create, update, delete: if request.auth != null && 
+                                        request.auth.uid == resource.data.userId;
+      allow list: if request.auth != null; // Allow listing but filter in the query
+    }
+    
+    // Workouts collection
+    match /workouts/{workoutId} {
+      allow read, create, update, delete: if request.auth != null && 
+                                         request.auth.uid == resource.data.userId;
+      allow list: if request.auth != null; // Allow listing but filter in the query
+    }
+    
+    // Social features
+    match /userConnections/{connectionId} {
+      allow read, create, update, delete: if request.auth != null && 
+                                         (request.auth.uid == resource.data.userId || 
+                                          request.auth.uid == resource.data.connectedUserId);
+    }
+    
+    match /sharedWorkouts/{workoutId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && 
+                                   request.auth.uid == resource.data.userId;
     }
   }
 }

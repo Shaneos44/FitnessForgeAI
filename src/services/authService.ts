@@ -6,7 +6,7 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { auth } from '../config/firebase';
 
 export interface AuthError {
   code: string;

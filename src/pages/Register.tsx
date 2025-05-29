@@ -47,11 +47,12 @@ const Register: React.FC = () => {
     
     if (password !== confirmPassword) {
       toast({
-        title: 'Error',
-        description: 'Passwords do not match',
+        title: 'Password mismatch',
+        description: 'Your passwords do not match. Please re-enter them to continue your fitness journey!',
         status: 'error',
-        duration: 5000,
+        duration: 4000,
         isClosable: true,
+        position: 'top',
       });
       return;
     }
@@ -64,46 +65,52 @@ const Register: React.FC = () => {
       if ('code' in result) {
         // Handle error
         let errorMessage = 'Failed to create account';
-        
+      
         if (result.code === 'auth/email-already-in-use') {
-          errorMessage = 'Email is already in use';
+          errorMessage = 'This email is already registered. Try logging in or use a different email.';
+        } else if (result.code === 'auth/invalid-email') {
+          errorMessage = 'Please enter a valid email address to join FitnessForgeAI.';
         } else if (result.code === 'auth/weak-password') {
-          errorMessage = 'Password is too weak';
+          errorMessage = 'Password should be at least 6 characters for your account security.';
         }
-        
+      
         toast({
-          title: 'Error',
+          title: 'Registration error',
           description: errorMessage,
           status: 'error',
           duration: 5000,
           isClosable: true,
+          position: 'top',
         });
       } else {
-        // Success - create user profile
+        // Success - create minimal user profile and redirect to profile setup
         await saveUserProfile(result.uid, {
           uid: result.uid,
           displayName: displayName,
           email: email,
-          fitnessLevel: 'beginner',
-          goals: ['Get fit', 'Stay healthy']
+          completedSetup: false // Mark that profile setup is not yet complete
         });
         
         toast({
-          title: 'Success',
-          description: 'Account created successfully',
+          title: 'Welcome to FitnessForgeAI! 🎉',
+          description: 'Your account is ready. Complete your profile to unlock personalized plans and community features!',
           status: 'success',
-          duration: 3000,
+          duration: 3500,
           isClosable: true,
+          position: 'top',
         });
-        navigate('/');
+        
+        // Redirect to profile setup
+        navigate('/profile-setup', { replace: true });
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
+        title: 'Registration failed',
+        description: 'Something went wrong during registration. Please try again or contact support.',
         status: 'error',
         duration: 5000,
         isClosable: true,
+        position: 'top',
       });
     }
 

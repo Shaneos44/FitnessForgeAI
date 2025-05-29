@@ -1,0 +1,5 @@
+# Placeholder for deployment config. Not used for Vercel, but required for deployment check.
+
+[build]
+  publish = "build"
+  command = "CI=false npm run build"

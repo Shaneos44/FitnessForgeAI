@@ -35,13 +35,14 @@ const ForgotPassword: React.FC = () => {
       if (result === true) {
         setEmailSent(true);
         toast({
-          title: 'Email Sent',
-          description: 'Check your inbox for password reset instructions',
+          title: 'Reset link sent! 📧',
+          description: 'Check your inbox for password reset instructions and get back on track!',
           status: 'success',
-          duration: 5000,
+          duration: 3500,
           isClosable: true,
+          position: 'top',
         });
-      } else {
+      } else if (result && 'code' in result) {
         // Handle error
         let errorMessage = 'Failed to send password reset email';
         
@@ -50,20 +51,22 @@ const ForgotPassword: React.FC = () => {
         }
         
         toast({
-          title: 'Error',
+          title: 'Reset failed',
           description: errorMessage,
           status: 'error',
-          duration: 5000,
+          duration: 4000,
           isClosable: true,
+          position: 'top',
         });
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
+        title: 'Unexpected error',
+        description: 'Something went wrong. Please try again or contact support if the issue persists.',
         status: 'error',
-        duration: 5000,
+        duration: 4000,
         isClosable: true,
+        position: 'top',
       });
     }
 

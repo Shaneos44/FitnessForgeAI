@@ -1,4 +1,4 @@
-export interface UserProfile {
+export interface FitnessForgeUserProfile {
   activePlanId?: string;
   id?: string;
   uid: string;

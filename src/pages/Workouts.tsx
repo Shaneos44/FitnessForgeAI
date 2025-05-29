@@ -14,9 +14,11 @@ import {
   Menu,
   MenuButton,
   MenuList,
-  MenuItem
+  MenuItem,
+  useDisclosure
 } from '@chakra-ui/react';
-import { getUserWorkouts, updateWorkoutStatus, deleteWorkout } from '../services/workoutService';
+import { getUserWorkouts, updateWorkoutStatus, deleteWorkout, addWorkout } from '../services/workoutService';
+import AddWorkoutModal from '../components/AddWorkoutModal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface WorkoutCardProps {
@@ -105,11 +107,32 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({ workout, onStatusChange, onDe
   );
 };
 
+
 const Workouts: React.FC = () => {
   const [workouts, setWorkouts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const { currentUser } = useAuth();
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
+  // Add Workout handler
+  const handleAddWorkout = async (workout: any) => {
+    if (!currentUser) return;
+    try {
+      await addWorkout(currentUser.uid, workout);
+      toast({
+        title: 'Workout added!',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+      // Refresh workouts
+      const userWorkouts = await getUserWorkouts(currentUser.uid);
+      setWorkouts(userWorkouts);
+    } catch (e) {
+      toast({ title: 'Error adding workout', status: 'error', duration: 4000, isClosable: true });
+    }
+  };
 
   useEffect(() => {
     const fetchWorkouts = async () => {
@@ -202,18 +225,47 @@ const Workouts: React.FC = () => {
     );
   }
 
+  // Calculate summary stats
+  const completedCount = workouts.filter(w => w.completed).length;
+  // Simple streak logic: count consecutive days with completed workouts up to today
+  let streak = 0;
+  let currentDate = new Date();
+  for (let i = 0; i < 30; i++) {
+    const dateStr = currentDate.toLocaleDateString();
+    if (workouts.some(w => w.completed && new Date(w.date).toLocaleDateString() === dateStr)) {
+      streak++;
+      currentDate.setDate(currentDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
   return (
     <Box p={5}>
-      <Flex justify="space-between" align="center" mb={6}>
-        <Heading size="lg">Your Workouts</Heading>
-        <Button colorScheme="blue">Add New Workout</Button>
+      {/* Motivational Banner */}
+      <Box bgGradient="linear(to-r, blue.400, purple.400)" p={5} borderRadius="xl" mb={6} boxShadow="md" textAlign="center">
+        <Heading size="md" color="white" mb={1}>Keep pushing forward!</Heading>
+        <Text color="whiteAlpha.900">Every workout brings you closer to your goals. Stay consistent and celebrate your progress!</Text>
+      </Box>
+
+      {/* Summary Stats */}
+      <Flex justify="center" gap={8} mb={8}>
+        <Box textAlign="center">
+          <Heading size="lg" color="blue.600">{completedCount}</Heading>
+          <Text fontSize="sm" color="gray.600">Workouts Completed</Text>
+        </Box>
+        <Box textAlign="center">
+          <Heading size="lg" color="purple.600">{streak}</Heading>
+          <Text fontSize="sm" color="gray.600">Day Streak</Text>
+        </Box>
       </Flex>
-      
+
       {workouts.length === 0 ? (
         <Box textAlign="center" p={10} bg="gray.50" borderRadius="lg">
+          <img src="https://undraw.co/api/illustrations/undraw_fitness_stats_sht6.svg" alt="No workouts" style={{ width: 220, margin: '0 auto 24px' }} />
           <Heading size="md" mb={3}>No workouts found</Heading>
           <Text mb={5}>You don't have any workouts yet. Create your first workout to get started.</Text>
-          <Button colorScheme="blue">Create Workout</Button>
+          <Button colorScheme="blue" onClick={onOpen}>Create Workout</Button>
         </Box>
       ) : (
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>

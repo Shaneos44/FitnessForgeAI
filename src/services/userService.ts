@@ -1,72 +1,72 @@
-import { db } from '../firebase/config';
+import { db } from '../config/firebase';
 import { 
   collection, 
   doc, 
   setDoc, 
   getDoc, 
-  getDocs, 
   updateDoc, 
-  deleteDoc, 
-  query, 
+  DocumentReference, 
+  DocumentData,
+  getDocs,
+  deleteDoc,
+  query,
   where,
   addDoc,
   serverTimestamp,
   Timestamp
 } from 'firebase/firestore';
+import { FitnessForgeUserProfile } from '../types/FitnessForgeUserProfile';
+import { getApp } from "firebase/app";
 
-export interface UserProfile {
-  id?: string;
-  uid: string;
-  displayName: string;
-  email: string;
-  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
-  goals: string[];
-  height?: number;
-  weight?: number;
-  birthdate?: Timestamp | Date;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-}
+console.log("FIREBASE PROJECT ID:", getApp().options.projectId);
+
 
 // Create or update user profile
-export const saveUserProfile = async (uid: string, profileData: Partial<UserProfile>): Promise<boolean> => {
+export const saveUserProfile = async (uid: string, profileData: Partial<FitnessForgeUserProfile>): Promise<boolean> => {
   try {
-    const userRef = doc(db, 'userProfiles', uid);
+    const userRef = doc(db, 'users', uid); // <-- changed here
     const docSnap = await getDoc(userRef);
-    
+
+    // Prepare data to save (remove undefined values)
+    const dataToSave = Object.fromEntries(
+      Object.entries(profileData).filter(([_, value]) => value !== undefined)
+    );
+
     if (docSnap.exists()) {
       // Update existing profile
       await updateDoc(userRef, {
-        ...profileData,
+        ...dataToSave,
         updatedAt: serverTimestamp()
       });
     } else {
       // Create new profile
       await setDoc(userRef, {
         uid,
-        ...profileData,
+        ...dataToSave,
+        completedSetup: true,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
     }
+
     return true;
   } catch (error) {
     console.error('Error saving user profile:', error);
-    throw error;
+    throw error; // Re-throw to handle in the component
   }
 };
 
 // Get user profile
-export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
+export const getUserProfile = async (uid: string): Promise<FitnessForgeUserProfile | null> => {
   try {
-    const docRef = doc(db, 'userProfiles', uid);
+    const docRef = doc(db, 'users', uid); // <-- changed here
     const docSnap = await getDoc(docRef);
-    
+
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
         ...docSnap.data()
-      } as UserProfile;
+      } as FitnessForgeUserProfile;
     } else {
       return null;
     }

@@ -1,4 +1,4 @@
-import { db } from '../firebase/config';
+import { db } from '../config/firebase';
 import { 
   collection, 
   doc, 
@@ -52,7 +52,8 @@ export const addTrainingPlan = async (userId: string, planData: Omit<TrainingPla
       updatedAt: serverTimestamp() as Timestamp
     };
     
-    const docRef = await addDoc(collection(db, 'trainingPlans'), trainingPlanData);
+    const planCollectionRef = collection(db, 'trainingPlans', userId, 'PlanID');
+    const docRef = await addDoc(planCollectionRef, trainingPlanData);
     return docRef.id;
   } catch (error) {
     console.error('Error adding training plan:', error);
@@ -61,9 +62,9 @@ export const addTrainingPlan = async (userId: string, planData: Omit<TrainingPla
 };
 
 // Get a specific training plan
-export const getTrainingPlan = async (planId: string): Promise<TrainingPlan | null> => {
+export const getTrainingPlan = async (userId: string, planId: string): Promise<TrainingPlan | null> => {
   try {
-    const docRef = doc(db, 'trainingPlans', planId);
+    const docRef = doc(db, 'trainingPlans', userId, 'PlanID', planId);
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
@@ -83,8 +84,8 @@ export const getTrainingPlan = async (planId: string): Promise<TrainingPlan | nu
 // Get all training plans for a user
 export const getUserTrainingPlans = async (userId: string): Promise<TrainingPlan[]> => {
   try {
-    const q = query(collection(db, 'trainingPlans'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
+    const planCollectionRef = collection(db, 'trainingPlans', userId, 'PlanID');
+    const querySnapshot = await getDocs(planCollectionRef);
     
     const plans: TrainingPlan[] = [];
     querySnapshot.forEach((doc) => {
@@ -102,9 +103,9 @@ export const getUserTrainingPlans = async (userId: string): Promise<TrainingPlan
 };
 
 // Update a training plan
-export const updateTrainingPlan = async (planId: string, planData: Partial<TrainingPlan>): Promise<boolean> => {
+export const updateTrainingPlan = async (userId: string, planId: string, planData: Partial<TrainingPlan>): Promise<boolean> => {
   try {
-    const planRef = doc(db, 'trainingPlans', planId);
+    const planRef = doc(db, 'trainingPlans', userId, 'PlanID', planId);
     await updateDoc(planRef, {
       ...planData,
       updatedAt: serverTimestamp()
@@ -117,9 +118,9 @@ export const updateTrainingPlan = async (planId: string, planData: Partial<Train
 };
 
 // Delete a training plan
-export const deleteTrainingPlan = async (planId: string): Promise<boolean> => {
+export const deleteTrainingPlan = async (userId: string, planId: string): Promise<boolean> => {
   try {
-    await deleteDoc(doc(db, 'trainingPlans', planId));
+    await deleteDoc(doc(db, 'trainingPlans', userId, 'PlanID', planId));
     return true;
   } catch (error) {
     console.error('Error deleting training plan:', error);

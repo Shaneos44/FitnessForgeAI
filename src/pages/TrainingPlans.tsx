@@ -34,41 +34,58 @@ import {
   AccordionIcon
 } from '@chakra-ui/react';
 import { useAuth } from '../contexts/AuthContext';
+import { Timestamp } from 'firebase/firestore';
 import { getUserTrainingPlans, addTrainingPlan, TrainingPlan, TrainingWeek, Workout } from '../services/trainingPlanService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // OpenAI integration for generating training plans
 const generateTrainingPlan = async (eventType: string, fitnessLevel: string, eventDate: Date, userId: string): Promise<TrainingPlan> => {
-  // In a real app, this would call the OpenAI API
-  // For now, we'll return a mock training plan
+  // Calculate the number of weeks until the event
+  const today = new Date();
+  const event = new Date(eventDate);
+  let numWeeks = Math.ceil((event.getTime() - today.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  // Fallback to minimum weeks by event type if event date is in the past or too short
+  const minWeeksByEvent: Record<string, number> = {
+    'marathon': 16,
+    'half marathon': 12,
+    'hyrox': 10,
+    'ironman': 20,
+    'half ironman': 16
+  };
+  const defaultWeeks = minWeeksByEvent[eventType] || 8;
+  if (isNaN(numWeeks) || numWeeks < defaultWeeks) numWeeks = defaultWeeks;
+
   const weeks: TrainingWeek[] = [];
-  
-  // Generate weeks based on event type
-  const numWeeks = eventType === 'marathon' ? 16 : 
-                  eventType === 'half marathon' ? 12 : 
-                  eventType === 'hyrox' ? 10 :
-                  eventType === 'ironman' ? 20 :
-                  eventType === 'half ironman' ? 16 : 8;
-  
   for (let i = 1; i <= numWeeks; i++) {
     const workouts: Workout[] = [];
-    
-    // Generate workouts for each week
+    // Tailor workout types and focus based on event type and fitness level
+    let types: string[];
+    let intensities: ('low' | 'medium' | 'high')[];
+    if (eventType === 'hyrox' || eventType === 'ironman') {
+      types = ['run', 'strength', 'cross', 'endurance'];
+      intensities = ['medium', 'high', 'medium', 'high'];
+    } else if (eventType === 'marathon' || eventType === 'half marathon') {
+      types = ['run', 'run', 'cross', 'endurance'];
+      intensities = ['medium', 'high', 'low', 'medium'];
+    } else {
+      types = ['run', 'strength', 'cross', 'run'];
+      intensities = ['low', 'medium', 'medium', 'high'];
+    }
+    const days = ['Monday', 'Wednesday', 'Friday', 'Sunday'];
     for (let j = 0; j < 4; j++) {
-      const days = ['Monday', 'Wednesday', 'Friday', 'Sunday'];
-      const types = ['run', 'strength', 'cross', 'endurance'];
-      const intensities = ['low', 'medium', 'high', 'medium'] as ('low' | 'medium' | 'high')[];
-      
+      let duration = 30 + (j * 10) + (Math.floor(i / 4) * 5);
+      // Adjust duration by fitness level
+      if (fitnessLevel === 'beginner') duration -= 5;
+      if (fitnessLevel === 'advanced') duration += 10;
       workouts.push({
         day: days[j],
         title: `${types[j].charAt(0).toUpperCase() + types[j].slice(1)} Training`,
         description: `${i % 2 === 0 ? 'Progressive' : 'Recovery'} ${types[j]} workout for ${fitnessLevel} level`,
-        duration: 30 + (j * 10) + (Math.floor(i / 4) * 5),
+        duration: Math.max(20, duration),
         intensity: intensities[j],
         type: types[j]
       });
     }
-    
     weeks.push({
       weekNumber: i,
       focus: i % 4 === 0 ? 'Recovery' : 
@@ -77,10 +94,9 @@ const generateTrainingPlan = async (eventType: string, fitnessLevel: string, eve
       workouts
     });
   }
-  
   return {
     name: `${eventType.charAt(0).toUpperCase() + eventType.slice(1)} Training Plan`,
-    description: `A ${numWeeks}-week progressive training plan designed for ${fitnessLevel} athletes preparing for a ${eventType} event.`,
+    description: `A ${numWeeks}-week progressive training plan designed for ${fitnessLevel} athletes preparing for a ${eventType} event on ${event.toDateString()}.`,
     eventType,
     eventDate,
     userId,
@@ -89,11 +105,12 @@ const generateTrainingPlan = async (eventType: string, fitnessLevel: string, eve
 };
 
 const TrainingPlans: React.FC = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, setUserProfile } = useAuth(); // userProfile is FitnessForgeUserProfile
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
+  const [settingActive, setSettingActive] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const navigate = useNavigate();
@@ -204,9 +221,21 @@ const TrainingPlans: React.FC = () => {
     }
   };
 
-  const formatDate = (date: Date | string) => {
+  const formatDate = (date: Date | string | Timestamp) => {
     if (!date) return '';
-    const d = typeof date === 'string' ? new Date(date) : date;
+    
+    let d: Date;
+    
+    if (typeof date === 'string') {
+      d = new Date(date);
+    } else if ('toDate' in date) {
+      // Handle Firestore Timestamp
+      d = date.toDate();
+    } else {
+      // It's already a Date object
+      d = date;
+    }
+    
     return d.toLocaleDateString();
   };
 
@@ -295,7 +324,7 @@ const TrainingPlans: React.FC = () => {
                         cursor: 'pointer'
                       }}
                       onClick={() => {
-                        setSelectedPlan(plan);
+                        if (userProfile && setUserProfile) setUserProfile({ ...userProfile, activePlanId: plan.id });
                         onOpen();
                       }}
                     >
