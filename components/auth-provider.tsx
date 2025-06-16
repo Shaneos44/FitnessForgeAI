@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
+import { firebaseAuth } from "@/lib/firebase-auth"
 
 interface User {
   uid: string
@@ -14,8 +15,10 @@ interface AuthContextType {
   loading: boolean
   error: string | null
   initialized: boolean
-  signIn: (user: User) => void
-  signOut: () => void
+  signIn: (email: string, password: string) => Promise<void>
+  signUp: (email: string, password: string) => Promise<void>
+  signInWithGoogle: () => Promise<void>
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -23,8 +26,10 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   error: null,
   initialized: false,
-  signIn: () => {},
-  signOut: () => {},
+  signIn: async () => {},
+  signUp: async () => {},
+  signInWithGoogle: async () => {},
+  signOut: async () => {},
 })
 
 export const useAuth = () => {
@@ -41,63 +46,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
-  // Function to sign in a user
-  const signIn = (userData: User) => {
-    console.log("AuthProvider: Signing in user", userData)
-    setUser(userData)
-    localStorage.setItem("demo_user", JSON.stringify(userData))
-  }
-
-  // Function to sign out a user
-  const signOut = () => {
-    console.log("AuthProvider: Signing out user")
-    setUser(null)
-    localStorage.removeItem("demo_user")
-  }
-
   useEffect(() => {
-    // Check for demo user in localStorage on mount
-    const checkDemoUser = () => {
-      try {
-        const demoUser = localStorage.getItem("demo_user")
-        if (demoUser) {
-          const userData = JSON.parse(demoUser)
-          console.log("AuthProvider: Found existing user in localStorage", userData)
-          setUser(userData)
-        } else {
-          console.log("AuthProvider: No existing user found")
-        }
-      } catch (error) {
-        console.error("Error checking demo user:", error)
-        setError("Failed to load user session")
-      } finally {
-        setLoading(false)
-        setInitialized(true)
+    console.log("Initializing custom Firebase Auth service...")
+
+    const unsubscribe = firebaseAuth.onAuthStateChanged((firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+        })
+      } else {
+        setUser(null)
       }
-    }
+      setLoading(false)
+      setInitialized(true)
+    })
 
-    // Small delay to simulate auth check
-    const timer = setTimeout(checkDemoUser, 500)
-
-    return () => clearTimeout(timer)
+    console.log("Custom Firebase Auth service initialized successfully")
+    return unsubscribe
   }, [])
 
-  // Listen for storage changes (for multi-tab support)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "demo_user") {
-        if (e.newValue) {
-          const userData = JSON.parse(e.newValue)
-          setUser(userData)
-        } else {
-          setUser(null)
-        }
-      }
+  const signIn = async (email: string, password: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      await firebaseAuth.signInWithEmailAndPassword(email, password)
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in")
+      console.error("Sign in error:", err)
+      throw err
+    } finally {
+      setLoading(false)
     }
+  }
 
-    window.addEventListener("storage", handleStorageChange)
-    return () => window.removeEventListener("storage", handleStorageChange)
-  }, [])
+  const signUp = async (email: string, password: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      await firebaseAuth.createUserWithEmailAndPassword(email, password)
+    } catch (err: any) {
+      setError(err.message || "Failed to sign up")
+      console.error("Sign up error:", err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signInWithGoogle = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await firebaseAuth.signInWithGoogle()
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in with Google")
+      console.error("Google sign in error:", err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const signOut = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await firebaseAuth.signOut()
+    } catch (err: any) {
+      setError(err.message || "Failed to sign out")
+      console.error("Sign out error:", err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <AuthContext.Provider
@@ -107,6 +131,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         initialized,
         signIn,
+        signUp,
+        signInWithGoogle,
         signOut,
       }}
     >

@@ -71,7 +71,14 @@ export default function ProgressPage() {
       setLoading(true)
       // Load user workouts and calculate progress
       const workouts = await getUserWorkouts(user.uid, 50)
-      const stats = await getUserStats(user.uid)
+
+      // Try to get user stats, but don't fail if it doesn't work
+      let stats = { totalWorkouts: 0, completedWorkouts: 0 }
+      try {
+        stats = await getUserStats(user.uid)
+      } catch (statsError) {
+        console.error("Error loading user stats:", statsError)
+      }
 
       // Process workouts into weekly stats
       const weeklyStats = processWorkoutsIntoWeeklyStats(workouts)

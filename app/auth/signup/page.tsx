@@ -20,7 +20,7 @@ export default function SignUpPage() {
   const [error, setError] = useState("")
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
-  const { signIn, user } = useAuth()
+  const { signUp, signInWithGoogle, user } = useAuth()
 
   useEffect(() => {
     setMounted(true)
@@ -54,30 +54,19 @@ export default function SignUpPage() {
 
     try {
       console.log("Starting email sign up...")
-
-      // Get Firebase Auth (now with fallback to mock)
-      const { getFirebaseAuth } = await import("@/lib/firebase")
-      const auth = await getFirebaseAuth()
-
-      console.log("Auth ready, attempting sign up...")
-
-      // Create user with email and password
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password)
-      console.log("Sign up successful:", userCredential.user.uid)
-
-      // Update auth context
-      signIn(userCredential.user)
+      await signUp(email, password)
+      console.log("Sign up successful")
 
       // Navigate to onboarding
       router.push("/onboarding")
     } catch (error: any) {
       console.error("Sign up error:", error)
 
-      if (error.code === "auth/email-already-in-use") {
+      if (error.message?.includes("EMAIL_EXISTS")) {
         setError("An account with this email already exists")
-      } else if (error.code === "auth/invalid-email") {
+      } else if (error.message?.includes("INVALID_EMAIL")) {
         setError("Please enter a valid email address")
-      } else if (error.code === "auth/weak-password") {
+      } else if (error.message?.includes("WEAK_PASSWORD")) {
         setError("Password is too weak. Please choose a stronger password.")
       } else {
         setError("Account creation failed. Please try again.")
@@ -95,33 +84,14 @@ export default function SignUpPage() {
 
     try {
       console.log("Starting Google sign up...")
-
-      // Get Firebase Auth and GoogleAuthProvider
-      const { getFirebaseAuth, GoogleAuthProvider } = await import("@/lib/firebase")
-      const auth = await getFirebaseAuth()
-
-      console.log("Auth ready, attempting Google sign up...")
-
-      // Create provider and attempt sign up
-      const provider = new GoogleAuthProvider()
-      const userCredential = await auth.signInWithPopup(provider)
-      console.log("Google sign up successful:", userCredential.user.uid)
-
-      // Update auth context
-      signIn(userCredential.user)
+      await signInWithGoogle()
+      console.log("Google sign up successful")
 
       // Navigate to onboarding
       router.push("/onboarding")
     } catch (error: any) {
       console.error("Google sign up error:", error)
-
-      if (error.code === "auth/popup-closed-by-user") {
-        setError("Sign up was cancelled")
-      } else if (error.code === "auth/popup-blocked") {
-        setError("Popup was blocked. Please allow popups and try again.")
-      } else {
-        setError("Google sign up failed. Please try again.")
-      }
+      setError("Google sign up failed. Please try again.")
     } finally {
       setLoading(false)
     }

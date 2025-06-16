@@ -19,7 +19,7 @@ export default function SignInPage() {
   const [error, setError] = useState("")
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
-  const { signIn, user } = useAuth()
+  const { signIn, signInWithGoogle, user } = useAuth()
 
   useEffect(() => {
     setMounted(true)
@@ -43,32 +43,19 @@ export default function SignInPage() {
 
     try {
       console.log("Starting email sign in...")
-
-      // Get Firebase Auth (now with fallback to mock)
-      const { getFirebaseAuth } = await import("@/lib/firebase")
-      const auth = await getFirebaseAuth()
-
-      console.log("Auth ready, attempting sign in...")
-
-      // Sign in with email and password
-      const userCredential = await auth.signInWithEmailAndPassword(email, password)
-      console.log("Sign in successful:", userCredential.user.uid)
-
-      // Update auth context
-      signIn(userCredential.user)
+      await signIn(email, password)
+      console.log("Sign in successful")
 
       // Navigate to dashboard
       router.push("/dashboard")
     } catch (error: any) {
       console.error("Sign in error:", error)
 
-      if (error.code === "auth/user-not-found") {
+      if (error.message?.includes("INVALID_LOGIN_CREDENTIALS") || error.message?.includes("INVALID_PASSWORD")) {
+        setError("Invalid email or password")
+      } else if (error.message?.includes("USER_NOT_FOUND")) {
         setError("No account found with this email address")
-      } else if (error.code === "auth/wrong-password") {
-        setError("Incorrect password")
-      } else if (error.code === "auth/invalid-email") {
-        setError("Please enter a valid email address")
-      } else if (error.code === "auth/too-many-requests") {
+      } else if (error.message?.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
         setError("Too many failed attempts. Please try again later.")
       } else {
         setError("Sign in failed. Please try again.")
@@ -86,33 +73,14 @@ export default function SignInPage() {
 
     try {
       console.log("Starting Google sign in...")
-
-      // Get Firebase Auth and GoogleAuthProvider
-      const { getFirebaseAuth, GoogleAuthProvider } = await import("@/lib/firebase")
-      const auth = await getFirebaseAuth()
-
-      console.log("Auth ready, attempting Google sign in...")
-
-      // Create provider and attempt sign in
-      const provider = new GoogleAuthProvider()
-      const userCredential = await auth.signInWithPopup(provider)
-      console.log("Google sign in successful:", userCredential.user.uid)
-
-      // Update auth context
-      signIn(userCredential.user)
+      await signInWithGoogle()
+      console.log("Google sign in successful")
 
       // Navigate to dashboard
       router.push("/dashboard")
     } catch (error: any) {
       console.error("Google sign in error:", error)
-
-      if (error.code === "auth/popup-closed-by-user") {
-        setError("Sign in was cancelled")
-      } else if (error.code === "auth/popup-blocked") {
-        setError("Popup was blocked. Please allow popups and try again.")
-      } else {
-        setError("Google sign in failed. Please try again.")
-      }
+      setError("Google sign in failed. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -199,12 +167,6 @@ export default function SignInPage() {
             <span className="text-gray-600">Don't have an account? </span>
             <Link href="/auth/signup" className="text-blue-600 hover:underline">
               Sign up
-            </Link>
-          </div>
-
-          <div className="text-center">
-            <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:underline">
-              Forgot your password?
             </Link>
           </div>
 

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
-import { getUserProfile, getUserWorkouts, getUserStats } from "@/lib/database"
+import { getUserProfile, getUserWorkouts, getUserStats } from "@/lib/database" // Ensure these use real database
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,11 +11,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
     }
 
-    // Get user context for personalized coaching
+    // Get user context for personalized coaching from the real database
     const [userProfile, recentWorkouts, userStats] = await Promise.all([
-      getUserProfile(userId).catch(() => null),
-      getUserWorkouts(userId, 5).catch(() => []),
-      getUserStats(userId).catch(() => null),
+      getUserProfile(userId).catch((e) => {
+        console.error("Error fetching user profile for AI coach:", e)
+        return null
+      }),
+      getUserWorkouts(userId, 5).catch((e) => {
+        console.error("Error fetching recent workouts for AI coach:", e)
+        return []
+      }),
+      getUserStats(userId).catch((e) => {
+        console.error("Error fetching user stats for AI coach:", e)
+        return null
+      }),
     ])
 
     // Build context for the AI coach
@@ -23,13 +32,17 @@ export async function POST(request: NextRequest) {
 User Profile:
 - Name: ${userProfile?.name || "User"}
 - Fitness Level: ${userProfile?.fitnessLevel || "Not specified"}
-- Goals: ${userProfile?.goals || "General fitness"}
-- Injuries/Limitations: ${userProfile?.injuries || "None specified"}
+- Goals: ${userProfile?.goals?.join(", ") || "General fitness"}
+- Injuries/Limitations: ${userProfile?.injuries?.join(", ") || "None specified"}
 
 Recent Performance:
 - Total Workouts: ${userStats?.totalWorkouts || 0}
+- Completed Workouts: ${userStats?.completedWorkouts || 0}
 - Completion Rate: ${Math.round(userStats?.completionRate || 0)}%
-- Recent Workouts: ${recentWorkouts.length} completed recently
+- Recent Workouts: ${
+      recentWorkouts.map((w) => `${w.name} (${w.duration} min, ${w.completedAt?.toLocaleDateString()})`).join("; ") ||
+      "None recorded"
+    }
 
 Chat History Context:
 ${chatHistory?.map((msg: any) => `${msg.sender}: ${msg.message}`).join("\n") || "No previous context"}
@@ -93,7 +106,7 @@ function generateSuggestions(userMessage: string, aiResponse: string): string[] 
     return ["Update my goals", "Track my progress", "What's next?"]
   }
 
-  if (lowerMessage.includes("tired") || lowerMessage.includes("sore") || lowerMessage.includes("recovery")) {
+  if (lowerMessage.includes("tired") || lowerMessage.includes("sore") || lowerResponse.includes("recovery")) {
     return ["Plan a rest day", "Recovery tips", "Adjust my plan"]
   }
 

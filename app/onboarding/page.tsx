@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter } from "next/navigation"
 import { ArrowRight, ArrowLeft } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
+import { updateUserProfile } from "@/lib/database"
 
 const eventTypes = [
   "5K Run",
@@ -54,6 +56,8 @@ export default function OnboardingPage() {
   })
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { user } = useAuth()
 
   const handleNext = async () => {
     if (step < 3) {
@@ -61,44 +65,89 @@ export default function OnboardingPage() {
     } else {
       // Generate AI training plan and save user data
       setLoading(true)
+      setError(null)
+
       try {
+        console.log("Starting plan generation with data:", formData)
+
+        // Validate required fields before sending
+        if (
+          !formData.eventType ||
+          !formData.eventDate ||
+          !formData.fitnessLevel ||
+          formData.availableDays.length === 0 ||
+          !formData.timePerSession
+        ) {
+          throw new Error("Please fill in all required fields")
+        }
+
         // Generate AI training plan
         const response = await fetch("/api/generate-plan", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(formData),
         })
 
-        if (response.ok) {
-          const { plan } = await response.json()
+        console.log("API response status:", response.status)
 
-          // Store plan in localStorage for demo
-          localStorage.setItem(
-            "userProfile",
-            JSON.stringify({
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+          console.error("API error:", errorData)
+          throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`)
+        }
+
+        const result = await response.json()
+        console.log("Plan generation successful:", result.success)
+
+        if (!result.plan) {
+          throw new Error("No training plan received from API")
+        }
+
+        // Update user profile in Firestore to mark onboarding as complete
+        if (user?.uid) {
+          try {
+            await updateUserProfile(user.uid, {
               ...formData,
               onboardingCompleted: true,
-            }),
-          )
-
-          localStorage.setItem(
-            "trainingPlan",
-            JSON.stringify({
-              plan,
-              eventType: formData.eventType,
-              eventDate: formData.eventDate,
-              status: "active",
-            }),
-          )
-
-          router.push("/dashboard?welcome=true")
-        } else {
-          throw new Error("Failed to generate plan")
+              trainingPlan: result.plan,
+            })
+            console.log("User profile updated successfully")
+          } catch (profileError) {
+            console.error("Error updating user profile:", profileError)
+            // Continue even if profile update fails
+          }
         }
+
+        // Store plan in localStorage for demo
+        localStorage.setItem(
+          "userProfile",
+          JSON.stringify({
+            ...formData,
+            onboardingCompleted: true,
+          }),
+        )
+
+        localStorage.setItem(
+          "trainingPlan",
+          JSON.stringify({
+            plan: result.plan,
+            eventType: formData.eventType,
+            eventDate: formData.eventDate,
+            status: "active",
+            weeksUntilEvent: result.weeksUntilEvent,
+          }),
+        )
+
+        console.log("Redirecting to dashboard...")
+        router.push("/dashboard?welcome=true")
       } catch (error) {
         console.error("Error completing onboarding:", error)
-        // Still redirect to dashboard even if plan generation fails
-        router.push("/dashboard")
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+        setError(errorMessage)
+
+        // Don't redirect on error - let user try again
       } finally {
         setLoading(false)
       }
@@ -147,7 +196,7 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <Label htmlFor="fitnessLevel">Current Fitness Level</Label>
+              <Label htmlFor="fitnessLevel">Current Fitness Level *</Label>
               <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, fitnessLevel: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your fitness level" />
@@ -178,7 +227,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="eventType">Target Event</Label>
+              <Label htmlFor="eventType">Target Event *</Label>
               <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, eventType: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your target event" />
@@ -194,7 +243,7 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <Label htmlFor="eventDate">Event Date</Label>
+              <Label htmlFor="eventDate">Event Date *</Label>
               <Input
                 id="eventDate"
                 type="date"
@@ -204,7 +253,7 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <Label>Available Training Days</Label>
+              <Label>Available Training Days * (Select at least one)</Label>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 {trainingDays.map((day) => (
                   <div key={day} className="flex items-center space-x-2">
@@ -222,7 +271,7 @@ export default function OnboardingPage() {
             </div>
 
             <div>
-              <Label htmlFor="timePerSession">Time Available Per Session</Label>
+              <Label htmlFor="timePerSession">Time Available Per Session *</Label>
               <Select onValueChange={(value) => setFormData((prev) => ({ ...prev, timePerSession: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select time per session" />
@@ -311,10 +360,18 @@ export default function OnboardingPage() {
           </CardHeader>
 
           <CardContent>
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-800 text-sm">
+                  <strong>Error:</strong> {error}
+                </p>
+              </div>
+            )}
+
             {renderStep()}
 
             <div className="flex justify-between mt-8">
-              <Button variant="outline" onClick={handleBack} disabled={step === 1}>
+              <Button variant="outline" onClick={handleBack} disabled={step === 1 || loading}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
